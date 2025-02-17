@@ -1,0 +1,93 @@
+service: my-serverless-app
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  memorySize: 128
+  timeout: 30
+  environment:
+    S3_BUCKET: data-ingestion-bucket-fintech
+    SQS_QUEUE_URL: https://sqs.us-east-1.amazonaws.com/783764603601/fintech-queue
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+          Resource: arn:aws:sqs:us-east-1:783764603601:fintech-queue
+        - Effect: Allow
+          Action:
+           - "s3:*"
+          Resource: "arn:aws:s3:::data-ingestion-bucket-fintech/*"
+ 
+package:
+  individually: true   
+  patterns:
+    #- "!node_modules/**"  
+    - "!src/**"           
+    - "!dist/**"         
+
+functions:
+  fileingestions3:
+    handler: dist/fileingestions3.handler
+    environment:
+      S3_BUCKET_NAME: "data-ingestion-bucket-fintech"
+      S3_FILE_NAME: "data.csv"
+    events:
+      - http:
+         path: fileingestions3
+         method: post
+    package:
+       patterns:
+        - "dist/fileingestions3.js"
+        - "dist/utils/**"
+  
+  fileingestion:
+    handler: dist/fileingestion.handler
+    environment:
+      S3_BUCKET_NAME: "data-ingestion-bucket-fintech"
+      S3_FILE_NAME: "data.csv"
+    events:
+      - http:
+         path: fileingestion
+         method: post
+    package:
+       patterns:
+        - "dist/fileingestion.js"
+        - "dist/utils/**"
+  
+
+  apiingestion:
+    handler: dist/apiingestion.handler
+    events:
+      - http:
+         path: apiingestion
+         method: post
+    package:
+       patterns:
+        - "dist/apiingestion.js"
+        - "dist/utils/**"
+       
+
+  sendmessage:
+    handler: dist/sqsproducer.handler
+    events:
+      - http:
+         path: sendmessage
+         method: post
+    package:
+       patterns:
+        - "dist/sqsproducer.js"
+        - "dist/utils/**" 
+
+resources:
+  Resources:
+    DataQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: my-data-queue
+
+plugins:
+  - serverless-offline

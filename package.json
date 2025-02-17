@@ -1,0 +1,37 @@
+{
+  "name": "fintech",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "deploy": "npm run build && serverless deploy",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.147",
+    "@types/node": "^18.19.76",
+    "serverless": "^4.6.2",
+    "serverless-offline": "^14.4.0",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.749.0",
+    "@aws-sdk/client-sqs": "^3.749.0",
+    "@smithy/protocol-http": "^5.0.1",
+    "@smithy/types": "^4.1.0",
+    "axios": "^1.7.9",
+    "csv-parser": "^3.2.0",
+    "dotenv": "^16.4.7",
+    "fast-xml-parser": "^4.5.1",
+    "jmespath": "^0.16.0",
+    "json-server": "^1.0.0-beta.3",
+    "strnum": "^1.0.5",
+    "tslib": "^2.8.1",
+    "uuid": "^11.0.5",
+    "winston": "^3.17.0"
+  }
+}
