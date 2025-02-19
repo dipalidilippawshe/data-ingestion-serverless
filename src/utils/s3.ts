@@ -10,10 +10,16 @@ export const readFileFromS3 = async(bucket: string, key: string)=>{
     
 };
  
-export const uploadFile = async (bucket: string, key: string, data: Buffer) => {
-  await s3.putObject({
-    Bucket: bucket,
-    Key: key,
-    Body: data,
-  })
+export const uploadFile = async (params:any) => {
+  try{
+    await s3.putObject({
+      Bucket: params.Bucket,
+      Key: params.Key,
+      Body: params.Body,
+      ContentType:params.contentType
+    })
+  }catch(error){
+    console.log("upload error:", error);
+  }
+ 
 };

@@ -83,6 +83,18 @@
         "LogGroupName": "/aws/lambda/my-serverless-app-dev-fileingestion"
       }
     },
+    "ProcessSQSLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/my-serverless-app-dev-processSQS"
+      }
+    },
+    "FileingestioneventLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/my-serverless-app-dev-fileingestionevent"
+      }
+    },
     "ApiingestionLogGroup": {
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
@@ -93,6 +105,12 @@
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
         "LogGroupName": "/aws/lambda/my-serverless-app-dev-sendmessage"
+      }
+    },
+    "UploadFileLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/my-serverless-app-dev-uploadFile"
       }
     },
     "IamRoleLambdaExecution": {
@@ -158,7 +176,12 @@
                   "Action": [
                     "sqs:SendMessage"
                   ],
-                  "Resource": "arn:aws:sqs:us-east-1:783764603601:fintech-queue"
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "DataQueue",
+                      "Arn"
+                    ]
+                  }
                 },
                 {
                   "Effect": "Allow",
@@ -166,6 +189,48 @@
                     "s3:*"
                   ],
                   "Resource": "arn:aws:s3:::data-ingestion-bucket-fintech/*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sqs:ReceiveMessage",
+                    "sqs:DeleteMessage",
+                    "sqs:GetQueueAttributes"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "DataQueue",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:BatchWriteItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:GetItem",
+                    "dynamodb:Scan",
+                    "dynamodb:Query"
+                  ],
+                  "Resource": "arn:aws:dynamodb:us-east-1:783764603601:table/user"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sqs:ReceiveMessage",
+                    "sqs:DeleteMessage",
+                    "sqs:GetQueueAttributes"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": [
+                        "DataQueue",
+                        "Arn"
+                      ]
+                    }
+                  ]
                 }
               ]
             }
@@ -194,7 +259,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/my-serverless-app/dev/1739764545083-2025-02-17T03:55:45.083Z/fileingestions3.zip"
+          "S3Key": "serverless/my-serverless-app/dev/1739942422303-2025-02-19T05:20:22.303Z/fileingestions3.zip"
         },
         "Handler": "dist/fileingestions3.handler",
         "Runtime": "nodejs18.x",
@@ -204,7 +269,10 @@
         "Environment": {
           "Variables": {
             "S3_BUCKET": "data-ingestion-bucket-fintech",
-            "SQS_QUEUE_URL": "https://sqs.us-east-1.amazonaws.com/783764603601/fintech-queue",
+            "SQS_QUEUE_URL": {
+              "Ref": "DataQueue"
+            },
+            "DYNAMO_DB_TABLE": "user",
             "S3_BUCKET_NAME": "data-ingestion-bucket-fintech",
             "S3_FILE_NAME": "data.csv"
           }
@@ -227,7 +295,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/my-serverless-app/dev/1739764545083-2025-02-17T03:55:45.083Z/fileingestion.zip"
+          "S3Key": "serverless/my-serverless-app/dev/1739942422303-2025-02-19T05:20:22.303Z/fileingestion.zip"
         },
         "Handler": "dist/fileingestion.handler",
         "Runtime": "nodejs18.x",
@@ -237,7 +305,10 @@
         "Environment": {
           "Variables": {
             "S3_BUCKET": "data-ingestion-bucket-fintech",
-            "SQS_QUEUE_URL": "https://sqs.us-east-1.amazonaws.com/783764603601/fintech-queue",
+            "SQS_QUEUE_URL": {
+              "Ref": "DataQueue"
+            },
+            "DYNAMO_DB_TABLE": "user",
             "S3_BUCKET_NAME": "data-ingestion-bucket-fintech",
             "S3_FILE_NAME": "data.csv"
           }
@@ -253,6 +324,75 @@
         "FileingestionLogGroup"
       ]
     },
+    "ProcessSQSLambdaFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ServerlessDeploymentBucket"
+          },
+          "S3Key": "serverless/my-serverless-app/dev/1739942422303-2025-02-19T05:20:22.303Z/processSQS.zip"
+        },
+        "Handler": "dist/sqsconsumer.handler",
+        "Runtime": "nodejs18.x",
+        "FunctionName": "my-serverless-app-dev-processSQS",
+        "MemorySize": 128,
+        "Timeout": 30,
+        "Environment": {
+          "Variables": {
+            "S3_BUCKET": "data-ingestion-bucket-fintech",
+            "SQS_QUEUE_URL": {
+              "Ref": "DataQueue"
+            },
+            "DYNAMO_DB_TABLE": "user"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "IamRoleLambdaExecution",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "ProcessSQSLogGroup"
+      ]
+    },
+    "FileingestioneventLambdaFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ServerlessDeploymentBucket"
+          },
+          "S3Key": "serverless/my-serverless-app/dev/1739942422303-2025-02-19T05:20:22.303Z/fileingestionevent.zip"
+        },
+        "Handler": "dist/fileingestionevent.handler",
+        "Runtime": "nodejs18.x",
+        "FunctionName": "my-serverless-app-dev-fileingestionevent",
+        "MemorySize": 128,
+        "Timeout": 30,
+        "Environment": {
+          "Variables": {
+            "S3_BUCKET": "data-ingestion-bucket-fintech",
+            "SQS_QUEUE_URL": {
+              "Ref": "DataQueue"
+            },
+            "DYNAMO_DB_TABLE": "user",
+            "S3_BUCKET_NAME": "data-ingestion-bucket-fintech"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "IamRoleLambdaExecution",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "FileingestioneventLogGroup"
+      ]
+    },
     "ApiingestionLambdaFunction": {
       "Type": "AWS::Lambda::Function",
       "Properties": {
@@ -260,7 +400,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/my-serverless-app/dev/1739764545083-2025-02-17T03:55:45.083Z/apiingestion.zip"
+          "S3Key": "serverless/my-serverless-app/dev/1739942422303-2025-02-19T05:20:22.303Z/apiingestion.zip"
         },
         "Handler": "dist/apiingestion.handler",
         "Runtime": "nodejs18.x",
@@ -270,7 +410,10 @@
         "Environment": {
           "Variables": {
             "S3_BUCKET": "data-ingestion-bucket-fintech",
-            "SQS_QUEUE_URL": "https://sqs.us-east-1.amazonaws.com/783764603601/fintech-queue"
+            "SQS_QUEUE_URL": {
+              "Ref": "DataQueue"
+            },
+            "DYNAMO_DB_TABLE": "user"
           }
         },
         "Role": {
@@ -291,7 +434,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/my-serverless-app/dev/1739764545083-2025-02-17T03:55:45.083Z/sendmessage.zip"
+          "S3Key": "serverless/my-serverless-app/dev/1739942422303-2025-02-19T05:20:22.303Z/sendmessage.zip"
         },
         "Handler": "dist/sqsproducer.handler",
         "Runtime": "nodejs18.x",
@@ -301,7 +444,10 @@
         "Environment": {
           "Variables": {
             "S3_BUCKET": "data-ingestion-bucket-fintech",
-            "SQS_QUEUE_URL": "https://sqs.us-east-1.amazonaws.com/783764603601/fintech-queue"
+            "SQS_QUEUE_URL": {
+              "Ref": "DataQueue"
+            },
+            "DYNAMO_DB_TABLE": "user"
           }
         },
         "Role": {
@@ -315,50 +461,118 @@
         "SendmessageLogGroup"
       ]
     },
-    "Fileingestions3LambdaVersionHTfFDMXA0tJcxrHP8NnnJ88uyf9ZVGYsVAXTPlhSWk": {
+    "UploadFileLambdaFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ServerlessDeploymentBucket"
+          },
+          "S3Key": "serverless/my-serverless-app/dev/1739942422303-2025-02-19T05:20:22.303Z/uploadFile.zip"
+        },
+        "Handler": "dist/fileingestionevent.uploadFileHandler",
+        "Runtime": "nodejs18.x",
+        "FunctionName": "my-serverless-app-dev-uploadFile",
+        "MemorySize": 128,
+        "Timeout": 30,
+        "Environment": {
+          "Variables": {
+            "S3_BUCKET": "data-ingestion-bucket-fintech",
+            "SQS_QUEUE_URL": {
+              "Ref": "DataQueue"
+            },
+            "DYNAMO_DB_TABLE": "user",
+            "S3_BUCKET_NAME": "data-ingestion-bucket-fintech"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "IamRoleLambdaExecution",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "UploadFileLogGroup"
+      ]
+    },
+    "Fileingestions3LambdaVersionC9TNbvRyzwaaEASfad9z7aWG4yr4rbnr3spTahvw": {
       "Type": "AWS::Lambda::Version",
       "DeletionPolicy": "Retain",
       "Properties": {
         "FunctionName": {
           "Ref": "Fileingestions3LambdaFunction"
         },
-        "CodeSha256": "k1AQ++uq1v3X1cZsXhlz39Kc7s1ZHVPPuplzo4jXto4="
+        "CodeSha256": "fptmtgD282Xieb2Zdom2WrXx64I7yfxqX/FhaxBxtXI="
       }
     },
-    "ApiingestionLambdaVersionXXrdUCu4FRdZmrls2DeBnsE7FgGH1Q5vK0tFRuv0Z4": {
-      "Type": "AWS::Lambda::Version",
-      "DeletionPolicy": "Retain",
-      "Properties": {
-        "FunctionName": {
-          "Ref": "ApiingestionLambdaFunction"
-        },
-        "CodeSha256": "oXz45bQwzuKuAzAsL9FXRmKD59wF+GEWjHCaxW3zszQ="
-      }
-    },
-    "SendmessageLambdaVersionxyUDSRkVK4nhf6oYOjNoLAHGseY6YJMu8NDralcw": {
-      "Type": "AWS::Lambda::Version",
-      "DeletionPolicy": "Retain",
-      "Properties": {
-        "FunctionName": {
-          "Ref": "SendmessageLambdaFunction"
-        },
-        "CodeSha256": "0Au+YlVGEXnDdoDhXGnG4C9wmCQKaaxE3Sa7PSfqbUk="
-      }
-    },
-    "FileingestionLambdaVersionCRYvzKdwnBz4x0P9xJFLagzlIJPf0Mp1V7IoCeK9O4Y": {
+    "FileingestionLambdaVersionwLz6mtntiKeeD0ePxEi2stAlc85qIF62TbW5Uproc4": {
       "Type": "AWS::Lambda::Version",
       "DeletionPolicy": "Retain",
       "Properties": {
         "FunctionName": {
           "Ref": "FileingestionLambdaFunction"
         },
-        "CodeSha256": "FBjBORt5mrnhdVrKE+lDgvrsWVCekOVsb22vtkBBJrE="
+        "CodeSha256": "tFUDSkUD/zj66TcqWEqmm574X2EzywUr2dRiodPx2cw="
+      }
+    },
+    "ApiingestionLambdaVersion7VPUHSopDUADbyksaFWe5R6CGnDZg8UT300kIpyg": {
+      "Type": "AWS::Lambda::Version",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ApiingestionLambdaFunction"
+        },
+        "CodeSha256": "TTHE3uqoDGiVsDPa3ylv1XPCn9E2xYcQ+18DCt7LpFM="
+      }
+    },
+    "FileingestioneventLambdaVersiona4EbUAJ6L8FPmBB2cxLrgL6mbYaHYegeC6z3Pb2k": {
+      "Type": "AWS::Lambda::Version",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "FileingestioneventLambdaFunction"
+        },
+        "CodeSha256": "6zSfJyBr3k+BHKGhrNRr0eL6rXSU/WJqexXtImgm9QM="
+      }
+    },
+    "ProcessSQSLambdaVersionryIEweeY9ZEjwgHXpgnwhOlPnSvfv8cgjR8tCXRM": {
+      "Type": "AWS::Lambda::Version",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ProcessSQSLambdaFunction"
+        },
+        "CodeSha256": "yVfxnOfjxpwaX8xBur5NVt5MIWwCpDFmpDX2uujquVs="
+      }
+    },
+    "SendmessageLambdaVersionNqWA4IEK1ngjm0x1Lb1aZMgePkK2XFvpLMlPdYbBeI": {
+      "Type": "AWS::Lambda::Version",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "SendmessageLambdaFunction"
+        },
+        "CodeSha256": "jmorXe8OoVqSFhfosIxTtWD3BPIeybb/m7rOwSAqOEo="
+      }
+    },
+    "UploadFileLambdaVersionTZbL2qHxQ5J61ZZxvuu2ROsXEtoh8JaIK1D7QGTs": {
+      "Type": "AWS::Lambda::Version",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "UploadFileLambdaFunction"
+        },
+        "CodeSha256": "tFUDSkUD/zj66TcqWEqmm574X2EzywUr2dRiodPx2cw="
       }
     },
     "ApiGatewayRestApi": {
       "Type": "AWS::ApiGateway::RestApi",
       "Properties": {
         "Name": "dev-my-serverless-app",
+        "BinaryMediaTypes": [
+          "multipart/form-data"
+        ],
         "EndpointConfiguration": {
           "Types": [
             "EDGE"
@@ -397,6 +611,21 @@
         }
       }
     },
+    "ApiGatewayResourceUploadfile": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "ApiGatewayRestApi",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "uploadfile",
+        "RestApiId": {
+          "Ref": "ApiGatewayRestApi"
+        }
+      }
+    },
     "ApiGatewayResourceApiingestion": {
       "Type": "AWS::ApiGateway::Resource",
       "Properties": {
@@ -422,6 +651,111 @@
           ]
         },
         "PathPart": "sendmessage",
+        "RestApiId": {
+          "Ref": "ApiGatewayRestApi"
+        }
+      }
+    },
+    "ApiGatewayResourceUpload": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "ApiGatewayRestApi",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "upload",
+        "RestApiId": {
+          "Ref": "ApiGatewayRestApi"
+        }
+      }
+    },
+    "ApiGatewayMethodUploadfileOptions": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "MethodResponses": [
+          {
+            "StatusCode": "200",
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true
+            },
+            "ResponseModels": {}
+          }
+        ],
+        "RequestParameters": {},
+        "Integration": {
+          "Type": "MOCK",
+          "RequestTemplates": {
+            "application/json": "{statusCode:200}"
+          },
+          "ContentHandling": "CONVERT_TO_TEXT",
+          "IntegrationResponses": [
+            {
+              "StatusCode": "200",
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id'",
+                "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,POST'"
+              },
+              "ResponseTemplates": {
+                "application/json": ""
+              }
+            }
+          ]
+        },
+        "ResourceId": {
+          "Ref": "ApiGatewayResourceUploadfile"
+        },
+        "RestApiId": {
+          "Ref": "ApiGatewayRestApi"
+        }
+      }
+    },
+    "ApiGatewayMethodUploadOptions": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "MethodResponses": [
+          {
+            "StatusCode": "200",
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true
+            },
+            "ResponseModels": {}
+          }
+        ],
+        "RequestParameters": {},
+        "Integration": {
+          "Type": "MOCK",
+          "RequestTemplates": {
+            "application/json": "{statusCode:200}"
+          },
+          "ContentHandling": "CONVERT_TO_TEXT",
+          "IntegrationResponses": [
+            {
+              "StatusCode": "200",
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id'",
+                "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,POST'"
+              },
+              "ResponseTemplates": {
+                "application/json": ""
+              }
+            }
+          ]
+        },
+        "ResourceId": {
+          "Ref": "ApiGatewayResourceUpload"
+        },
         "RestApiId": {
           "Ref": "ApiGatewayRestApi"
         }
@@ -519,6 +853,52 @@
         "FileingestionLambdaPermissionApiGateway"
       ]
     },
+    "ApiGatewayMethodUploadfilePost": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "HttpMethod": "POST",
+        "RequestParameters": {},
+        "ResourceId": {
+          "Ref": "ApiGatewayResourceUploadfile"
+        },
+        "RestApiId": {
+          "Ref": "ApiGatewayRestApi"
+        },
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":apigateway:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "FileingestioneventLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "/invocations"
+              ]
+            ]
+          }
+        },
+        "MethodResponses": []
+      },
+      "DependsOn": [
+        "FileingestioneventLambdaPermissionApiGateway"
+      ]
+    },
     "ApiGatewayMethodApiingestionPost": {
       "Type": "AWS::ApiGateway::Method",
       "Properties": {
@@ -611,7 +991,53 @@
         "SendmessageLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1739764473457": {
+    "ApiGatewayMethodUploadPost": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "HttpMethod": "POST",
+        "RequestParameters": {},
+        "ResourceId": {
+          "Ref": "ApiGatewayResourceUpload"
+        },
+        "RestApiId": {
+          "Ref": "ApiGatewayRestApi"
+        },
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":apigateway:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "UploadFileLambdaFunction",
+                    "Arn"
+                  ]
+                },
+                "/invocations"
+              ]
+            ]
+          }
+        },
+        "MethodResponses": []
+      },
+      "DependsOn": [
+        "UploadFileLambdaPermissionApiGateway"
+      ]
+    },
+    "ApiGatewayDeployment1739942309302": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {
@@ -620,10 +1046,14 @@
         "StageName": "dev"
       },
       "DependsOn": [
+        "ApiGatewayMethodUploadfileOptions",
+        "ApiGatewayMethodUploadOptions",
         "ApiGatewayMethodFileingestions3Post",
         "ApiGatewayMethodFileingestionPost",
+        "ApiGatewayMethodUploadfilePost",
         "ApiGatewayMethodApiingestionPost",
-        "ApiGatewayMethodSendmessagePost"
+        "ApiGatewayMethodSendmessagePost",
+        "ApiGatewayMethodUploadPost"
       ]
     },
     "Fileingestions3LambdaPermissionApiGateway": {
@@ -669,6 +1099,43 @@
         "FunctionName": {
           "Fn::GetAtt": [
             "FileingestionLambdaFunction",
+            "Arn"
+          ]
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":execute-api:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":",
+              {
+                "Ref": "ApiGatewayRestApi"
+              },
+              "/*/*"
+            ]
+          ]
+        }
+      }
+    },
+    "FileingestioneventLambdaPermissionApiGateway": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "FileingestioneventLambdaFunction",
             "Arn"
           ]
         },
@@ -774,10 +1241,85 @@
         }
       }
     },
+    "UploadFileLambdaPermissionApiGateway": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "UploadFileLambdaFunction",
+            "Arn"
+          ]
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":execute-api:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":",
+              {
+                "Ref": "ApiGatewayRestApi"
+              },
+              "/*/*"
+            ]
+          ]
+        }
+      }
+    },
+    "ProcessSQSEventSourceMappingSQSDataQueue": {
+      "Type": "AWS::Lambda::EventSourceMapping",
+      "DependsOn": [
+        "IamRoleLambdaExecution"
+      ],
+      "Properties": {
+        "BatchSize": 1,
+        "EventSourceArn": {
+          "Fn::GetAtt": [
+            "DataQueue",
+            "Arn"
+          ]
+        },
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "ProcessSQSLambdaFunction",
+            "Arn"
+          ]
+        },
+        "Enabled": true
+      }
+    },
     "DataQueue": {
       "Type": "AWS::SQS::Queue",
       "Properties": {
-        "QueueName": "my-data-queue"
+        "QueueName": "fintech-queue",
+        "VisibilityTimeout": 60,
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "MyDLQ",
+              "Arn"
+            ]
+          },
+          "maxReceiveCount": 5
+        }
+      }
+    },
+    "MyDLQ": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "QueueName": "my-sqs-dlq"
       }
     }
   },
@@ -793,37 +1335,64 @@
     "Fileingestions3LambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "Fileingestions3LambdaVersionHTfFDMXA0tJcxrHP8NnnJ88uyf9ZVGYsVAXTPlhSWk"
+        "Ref": "Fileingestions3LambdaVersionC9TNbvRyzwaaEASfad9z7aWG4yr4rbnr3spTahvw"
       },
       "Export": {
         "Name": "sls-my-serverless-app-dev-Fileingestions3LambdaFunctionQualifiedArn"
       }
     },
+    "FileingestionLambdaFunctionQualifiedArn": {
+      "Description": "Current Lambda function version",
+      "Value": {
+        "Ref": "FileingestionLambdaVersionwLz6mtntiKeeD0ePxEi2stAlc85qIF62TbW5Uproc4"
+      },
+      "Export": {
+        "Name": "sls-my-serverless-app-dev-FileingestionLambdaFunctionQualifiedArn"
+      }
+    },
     "ApiingestionLambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "ApiingestionLambdaVersionXXrdUCu4FRdZmrls2DeBnsE7FgGH1Q5vK0tFRuv0Z4"
+        "Ref": "ApiingestionLambdaVersion7VPUHSopDUADbyksaFWe5R6CGnDZg8UT300kIpyg"
       },
       "Export": {
         "Name": "sls-my-serverless-app-dev-ApiingestionLambdaFunctionQualifiedArn"
       }
     },
+    "FileingestioneventLambdaFunctionQualifiedArn": {
+      "Description": "Current Lambda function version",
+      "Value": {
+        "Ref": "FileingestioneventLambdaVersiona4EbUAJ6L8FPmBB2cxLrgL6mbYaHYegeC6z3Pb2k"
+      },
+      "Export": {
+        "Name": "sls-my-serverless-app-dev-FileingestioneventLambdaFunctionQualifiedArn"
+      }
+    },
+    "ProcessSQSLambdaFunctionQualifiedArn": {
+      "Description": "Current Lambda function version",
+      "Value": {
+        "Ref": "ProcessSQSLambdaVersionryIEweeY9ZEjwgHXpgnwhOlPnSvfv8cgjR8tCXRM"
+      },
+      "Export": {
+        "Name": "sls-my-serverless-app-dev-ProcessSQSLambdaFunctionQualifiedArn"
+      }
+    },
     "SendmessageLambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "SendmessageLambdaVersionxyUDSRkVK4nhf6oYOjNoLAHGseY6YJMu8NDralcw"
+        "Ref": "SendmessageLambdaVersionNqWA4IEK1ngjm0x1Lb1aZMgePkK2XFvpLMlPdYbBeI"
       },
       "Export": {
         "Name": "sls-my-serverless-app-dev-SendmessageLambdaFunctionQualifiedArn"
       }
     },
-    "FileingestionLambdaFunctionQualifiedArn": {
+    "UploadFileLambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "FileingestionLambdaVersionCRYvzKdwnBz4x0P9xJFLagzlIJPf0Mp1V7IoCeK9O4Y"
+        "Ref": "UploadFileLambdaVersionTZbL2qHxQ5J61ZZxvuu2ROsXEtoh8JaIK1D7QGTs"
       },
       "Export": {
-        "Name": "sls-my-serverless-app-dev-FileingestionLambdaFunctionQualifiedArn"
+        "Name": "sls-my-serverless-app-dev-UploadFileLambdaFunctionQualifiedArn"
       }
     },
     "ServiceEndpoint": {

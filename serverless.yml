@@ -9,25 +9,46 @@ provider:
   timeout: 30
   environment:
     S3_BUCKET: data-ingestion-bucket-fintech
-    SQS_QUEUE_URL: https://sqs.us-east-1.amazonaws.com/783764603601/fintech-queue
+    SQS_QUEUE_URL: !Ref DataQueue
+    DYNAMO_DB_TABLE: user
   iam:
     role:
       statements:
         - Effect: Allow
           Action:
             - sqs:SendMessage
-          Resource: arn:aws:sqs:us-east-1:783764603601:fintech-queue
+          Resource: !GetAtt DataQueue.Arn
         - Effect: Allow
           Action:
            - "s3:*"
           Resource: "arn:aws:s3:::data-ingestion-bucket-fintech/*"
- 
+        - Effect: "Allow"
+          Action:
+           - "sqs:ReceiveMessage"
+           - "sqs:DeleteMessage"
+           - "sqs:GetQueueAttributes"
+          Resource: !GetAtt DataQueue.Arn
+        - Effect: Allow
+          Action:
+            - "dynamodb:BatchWriteItem"
+            - "dynamodb:PutItem"
+            - "dynamodb:UpdateItem"
+            - "dynamodb:GetItem"
+            - "dynamodb:Scan"
+            - "dynamodb:Query"
+          Resource:
+            - arn:aws:dynamodb:us-east-1:783764603601:table/user
+
+  apiGateway:
+    binaryMediaTypes:
+      - "multipart/form-data"
+    maximumRequestBodySize: 11442432 
+
 package:
   individually: true   
   patterns:
-    #- "!node_modules/**"  
-    - "!src/**"           
-    - "!dist/**"         
+    - "!src/**"
+    - "!dist/**"
 
 functions:
   fileingestions3:
@@ -37,8 +58,8 @@ functions:
       S3_FILE_NAME: "data.csv"
     events:
       - http:
-         path: fileingestions3
-         method: post
+          path: fileingestions3
+          method: post
     package:
        patterns:
         - "dist/fileingestions3.js"
@@ -51,43 +72,88 @@ functions:
       S3_FILE_NAME: "data.csv"
     events:
       - http:
-         path: fileingestion
-         method: post
+          path: fileingestion
+          method: post
+
+  processSQS:
+    handler: dist/sqsconsumer.handler  
+    events:
+       - sqs:
+          arn: !GetAtt DataQueue.Arn
+          batchSize: 1  
+          maximumRetryAttempts: 3  
     package:
        patterns:
-        - "dist/fileingestion.js"
+        - "dist/sqsconsumer.js"
         - "dist/utils/**"
   
+  fileingestionevent:
+    handler: dist/fileingestionevent.handler
+    environment:
+      S3_BUCKET_NAME: "data-ingestion-bucket-fintech"
+    events:
+      - http:
+          path: uploadfile
+          method: post
+          cors: true
+          contentHandling: CONVERT_TO_BINARY
+    package:
+       patterns:
+        - "dist/fileingestionevent.js"
+        - "dist/utils/**"
 
   apiingestion:
     handler: dist/apiingestion.handler
     events:
       - http:
-         path: apiingestion
-         method: post
+          path: apiingestion
+          method: post
     package:
        patterns:
         - "dist/apiingestion.js"
         - "dist/utils/**"
        
-
   sendmessage:
     handler: dist/sqsproducer.handler
     events:
       - http:
-         path: sendmessage
-         method: post
+          path: sendmessage
+          method: post
     package:
        patterns:
         - "dist/sqsproducer.js"
         - "dist/utils/**" 
+
+  uploadFile:
+    handler: dist/fileingestionevent.uploadFileHandler
+    environment:
+      S3_BUCKET_NAME: "data-ingestion-bucket-fintech"
+    events:
+      - http:
+          path: upload
+          method: post
+          cors: true
+          timeout: 30 # Optional: Set timeout for longer uploads (e.g., 30 seconds)
+
+custom:
+  apiGateway:
+    binaryMediaTypes:
+      - "multipart/form-data"
 
 resources:
   Resources:
     DataQueue:
       Type: AWS::SQS::Queue
       Properties:
-        QueueName: my-data-queue
+        QueueName: fintech-queue
+        VisibilityTimeout: 60
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt MyDLQ.Arn
+          maxReceiveCount: 5
+    MyDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: my-sqs-dlq
 
 plugins:
   - serverless-offline

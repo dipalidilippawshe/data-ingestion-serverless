@@ -19,11 +19,17 @@ const readFileFromS3 = (bucket, key) => __awaiter(void 0, void 0, void 0, functi
     return file;
 });
 exports.readFileFromS3 = readFileFromS3;
-const uploadFile = (bucket, key, data) => __awaiter(void 0, void 0, void 0, function* () {
-    yield s3.putObject({
-        Bucket: bucket,
-        Key: key,
-        Body: data,
-    });
+const uploadFile = (params) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        yield s3.putObject({
+            Bucket: params.Bucket,
+            Key: params.Key,
+            Body: params.Body,
+            ContentType: params.contentType
+        });
+    }
+    catch (error) {
+        console.log("upload error:", error);
+    }
 });
 exports.uploadFile = uploadFile;

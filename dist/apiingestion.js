@@ -22,7 +22,7 @@ const API_URL = "https://jsonplaceholder.typicode.com/todos"; // demo api that r
 const handler = (event) => __awaiter(void 0, void 0, void 0, function* () {
     console.log("In api ingestion;;;");
     let page = 1;
-    const limit = 10;
+    const limit = 100;
     let totalRecords = [];
     try {
         while (true) {
@@ -33,8 +33,12 @@ const handler = (event) => __awaiter(void 0, void 0, void 0, function* () {
                     logger_1.default.info("No more data. Stopping ingestion.", { status: "failed" });
                     break;
                 }
+                (0, sqs_1.sendMessage)(process.env.SQS_QUEUE_URL, response.data);
                 // Sending all messages to SQS in parallel
-                yield Promise.all(response.data.map((item) => (0, sqs_1.sendMessage)(process.env.SQS_QUEUE_URL, item)));
+                //    await Promise.all(response.data.map((item: any) =>
+                //    sendMessage(process.env.SQS_QUEUE_URL!,item)
+                //  ));
+                console.log("after data post..");
                 totalRecords = totalRecords.concat(response.data);
                 logger_1.default.info("Processing data", { data: event });
                 page++; // Move to next page
