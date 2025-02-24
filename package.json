@@ -38,6 +38,7 @@
     "fast-xml-parser": "^4.5.1",
     "jmespath": "^0.16.0",
     "json-server": "^1.0.0-beta.3",
+    "lambda-multipart-parser": "^1.0.1",
     "multer": "^1.4.5-lts.1",
     "strnum": "^1.0.5",
     "tslib": "^2.8.1",

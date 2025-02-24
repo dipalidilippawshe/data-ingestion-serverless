@@ -1,4 +1,5 @@
-import { S3, GetObjectCommand } from "@aws-sdk/client-s3"
+import { S3, GetObjectCommand, S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
+import { resolve } from "path";
 import { Readable } from "stream";
 const s3 = new S3();
 export const readFileFromS3 = async(bucket: string, key: string)=>{
@@ -9,6 +10,16 @@ export const readFileFromS3 = async(bucket: string, key: string)=>{
         return file;
     
 };
+export const putObjecttos3 = async(s3Object:any)=>{
+  return new Promise(async(resolve,reject)=>{
+    try{
+      const savedObj = await s3.send(new PutObjectCommand(s3Object));
+      resolve(savedObj);
+    }catch(err){
+      reject(err);
+    }
+  })
+}
  
 export const uploadFile = async (params:any) => {
   try{

@@ -14,47 +14,81 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handler = void 0;
 const csv_parser_1 = __importDefault(require("csv-parser"));
-const sqs_1 = require("./utils/sqs");
+const lambda_multipart_parser_1 = __importDefault(require("lambda-multipart-parser"));
 const s3_1 = require("./utils/s3");
 const filePath = "data.csv";
 const bucketName = process.env.S3_BUCKET_NAME;
 const fileName = process.env.S3_FILE_NAME;
 const handler = (event) => __awaiter(void 0, void 0, void 0, function* () {
-    console.log("FIlepath: ", filePath);
     try {
-        //Read file from s3
-        const filedata = yield (0, s3_1.readFileFromS3)(bucketName, fileName);
-        console.log("body: ", filedata);
-        if (filedata && filedata['Body']) {
-            console.log("bodu founjngf");
-            const objectName = fileName; // The key you requested
-            const contentType = filedata.ContentType || "Unknown";
-            const contentLength = filedata.ContentLength || 0;
-            const fileSize = contentLength / (1024 * 1024);
-            if (contentType !== "text/csv") {
-                console.error("Invalid file type. Expected CSV.");
-                throw new Error("Invalid file type. Expected CSV.");
-            }
-            if (fileSize > 10) {
-                console.error("Please upload file upto size of 10MB");
-                throw new Error("Please upload file upto size of 10MB");
-            }
-            const fileContent = yield parseCSV(filedata.Body);
-            yield Promise.all(fileContent.map((item) => (0, sqs_1.sendMessage)(process.env.SQS_QUEUE_URL, item)));
-            console.log("All messages sent successfully.");
+        const parsedData = yield lambda_multipart_parser_1.default.parse(event);
+        const file = parsedData.files[0];
+        if (!file) {
             return {
-                statusCode: 201,
-                body: JSON.stringify({ message: "CSV processed successfully", data: fileContent }),
+                statusCode: 404,
+                body: JSON.stringify("file not found!")
             };
         }
-    }
-    catch (error) {
-        console.error("Error reading file:", error);
+        const s3Object = {
+            Bucket: bucketName,
+            Key: file.filename,
+            Body: file.content,
+            ContentType: file.contentType
+        };
+        const savedPromise = yield (0, s3_1.putObjecttos3)(s3Object);
         return {
-            statusCode: 401,
-            body: JSON.stringify({ statusCode: 500, body: `Error: ${error}` })
+            statusCode: 201,
+            body: JSON.stringify(savedPromise)
         };
     }
+    catch (error) {
+        return {
+            statusCode: 401,
+            body: JSON.stringify(error)
+        };
+    }
+    /**
+     try {
+     //Read file from s3
+    
+     const filedata= await readFileFromS3(bucketName,fileName)
+     console.log("body: ",filedata);
+     if(filedata && filedata['Body']){
+         console.log("bodu founjngf");
+ 
+     
+     const objectName = fileName; // The key you requested
+     const contentType = filedata.ContentType || "Unknown";
+     const contentLength = filedata.ContentLength || 0;
+     const fileSize= contentLength/ (1024 * 1024);
+     if(contentType!=="text/csv"){
+         console.error("Invalid file type. Expected CSV.");
+         throw new Error("Invalid file type. Expected CSV.");
+     }
+     if(fileSize>10){
+         console.error("Please upload file upto size of 10MB");
+         throw new Error("Please upload file upto size of 10MB");
+ 
+     }
+     const fileContent = await parseCSV(filedata.Body as Readable);
+     await Promise.all(fileContent.map((item: any) =>
+         sendMessage(process.env.SQS_QUEUE_URL!,item)
+     ))
+     console.log("All messages sent successfully.");
+ 
+     return {
+         statusCode: 201,
+         body: JSON.stringify({ message: "CSV processed successfully", data: fileContent }),
+       };
+     }
+    }catch(error){
+     console.error("Error reading file:", error);
+     return {
+         statusCode: 401,
+         body: JSON.stringify({ statusCode: 500, body: `Error: ${error}` })
+        };
+    }
+ */
 });
 exports.handler = handler;
 const parseCSV = (stream) => __awaiter(void 0, void 0, void 0, function* () {

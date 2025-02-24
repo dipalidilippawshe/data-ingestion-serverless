@@ -135,6 +135,17 @@ functions:
           cors: true
           timeout: 30 # Optional: Set timeout for longer uploads (e.g., 30 seconds)
 
+  presignedurl:
+    handler: dist/presigneds3.generatePresignedUrl
+    environment:
+      S3_BUCKET_NAME: "data-ingestion-bucket-fintech"
+    events:
+      - http:
+          path: presignedurl
+          method: post
+          cors: true
+          timeout: 30 # Optional: Set timeout for longer uploads (e.g., 30 seconds)
+ 
 custom:
   apiGateway:
     binaryMediaTypes:

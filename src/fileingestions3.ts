@@ -1,14 +1,44 @@
-
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import csv from "csv-parser";
+import parser from "lambda-multipart-parser";
 import { Readable } from "stream";
 import {sendMessage} from "./utils/sqs";
-import {readFileFromS3} from "./utils/s3";
+import {readFileFromS3,putObjecttos3} from "./utils/s3";
+import { promises } from "dns";
 const filePath = "data.csv";
 const bucketName = process.env.S3_BUCKET_NAME!;
 const fileName = process.env.S3_FILE_NAME!;
-export const handler= async(event :Event)=>{
-   console.log("FIlepath: ",filePath);
+export const handler= async(event :APIGatewayProxyEvent):Promise<APIGatewayProxyResult>=>{
+   
+  try{
+    const parsedData = await parser.parse(event);
+    const file = parsedData.files[0];
+    if(!file){
+        return{
+            statusCode:404,
+            body:JSON.stringify("file not found!")
+        }
+    }
+        const s3Object= {
+            Bucket : bucketName,
+            Key : file.filename,
+            Body:file.content,
+            ContentType: file.contentType
+        }
+        const savedPromise = await putObjecttos3(s3Object);
 
+    return{
+        statusCode:201,
+        body:JSON.stringify(savedPromise)
+    }
+  }catch(error){
+    return {
+        statusCode:401,
+        body:JSON.stringify(error)
+    }
+  }
+ 
+   /** 
     try {
     //Read file from s3
    
@@ -49,7 +79,7 @@ export const handler= async(event :Event)=>{
         body: JSON.stringify({ statusCode: 500, body: `Error: ${error}` })
        };
    }
-
+*/
 }
 
 const parseCSV = async (stream: Readable): Promise<any[]> => {

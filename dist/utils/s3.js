@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadFile = exports.readFileFromS3 = void 0;
+exports.uploadFile = exports.putObjecttos3 = exports.readFileFromS3 = void 0;
 const client_s3_1 = require("@aws-sdk/client-s3");
 const s3 = new client_s3_1.S3();
 const readFileFromS3 = (bucket, key) => __awaiter(void 0, void 0, void 0, function* () {
@@ -19,6 +19,18 @@ const readFileFromS3 = (bucket, key) => __awaiter(void 0, void 0, void 0, functi
     return file;
 });
 exports.readFileFromS3 = readFileFromS3;
+const putObjecttos3 = (s3Object) => __awaiter(void 0, void 0, void 0, function* () {
+    return new Promise((resolve, reject) => __awaiter(void 0, void 0, void 0, function* () {
+        try {
+            const savedObj = yield s3.send(new client_s3_1.PutObjectCommand(s3Object));
+            resolve(savedObj);
+        }
+        catch (err) {
+            reject(err);
+        }
+    }));
+});
+exports.putObjecttos3 = putObjecttos3;
 const uploadFile = (params) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         yield s3.putObject({
